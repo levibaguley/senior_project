@@ -60,15 +60,17 @@ plot_dat <-
   bind_cols(predict(R50_mod, new_data = ., type = 'conf_int')) %>%
   select(!ends_with("_0"))
 
+
 sample %>%
   ggplot(aes(range, detection, color = as.factor(turbines))) +
   geom_jitter(width = 0, height = .02) +
   geom_line(aes(y=.pred_1),       plot_dat, size=1) +
   geom_line(aes(y=.pred_lower_1), plot_dat, linetype = 2) +
   geom_line(aes(y=.pred_upper_1), plot_dat, linetype = 2) +
-  geom_point(aes(lower_R50, .5), R50_tibble) +
-  geom_point(aes(upper_R50, .5), R50_tibble) +
-  geom_point(aes(R50, .5), R50_tibble) +
+  coord_cartesian(xlim = c(0,40)) +
+  # geom_point(aes(lower_R50, .5), R50_tibble) +
+  # geom_point(aes(upper_R50, .5), R50_tibble) +
+  # geom_point(aes(R50, .5), R50_tibble) +
   # geom_segment(aes(x =  lower_R50, y =    .5,
   #                  xend=upper_R50, yend = .5),
   #              R50_tibble) +
@@ -77,13 +79,33 @@ sample %>%
 
 
 
-# sample %>%
-#   filter(detected == 1) %>%
-#   group_by(windmills) %>%
-#   summarise(q_2 = quantile(range, .5))
-#
-# sample %>%
-# filter(detected == 1) %>%
-# ggplot(aes(range)) +
-#   geom_histogram(bins = 10) +
-#   facet_wrap(~windmills, ncol = 1)
+name <- function(dat, conf_type) {
+
+  tibble(turbines = c(rep(0, 1000), rep(1, 1000))) %>%
+    mutate(range = rep(seq(0,40, length.out = 1000), 2)) %>%
+    bind_cols(predict(R50_mod, new_data = ., type = 'prob')) %>%
+    bind_cols(predict(R50_mod, new_data = ., type = 'conf_int')) %>%
+    select(!ends_with("_0"))
+
+
+}
+
+get_conf <- function(dat, conf_type) {
+
+  conf_type %<>%
+    {str_glue(".pred_{.}_1")}
+
+
+  dat %>%
+    group_by(turbines) %>%
+    select(turbines, range, as.symbol(conf_type)) %>%
+    slice_min(abs(.pred_lower_1-.5), 1) %>%
+    select(turbines, as.symbol(conf_type) = range) %>%
+    ungroup()
+}
+
+plot_dat %>%
+get_conf("upper")
+
+
+
