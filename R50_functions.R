@@ -50,3 +50,29 @@ solve_R50_conf <- function(R50_mod, res=1000, interval = c(0,40)) {
   return(get_conf(solve_dat, "lower") %>%
            left_join(get_conf(solve_dat, "upper"), by = "turbines"))
 }
+
+
+
+
+conf_solve <- function(turbines, conf_type, R50_mod) {
+
+  conf_root <- function(range, turbines, conf_type, R50_mod) {
+    conf_col <- str_glue(".pred_{conf_type}_1") %>% sym()
+
+    suppressMessages(predict(R50_mod,
+                             tibble(range = range, turbines = turbines),
+                             type = "conf_int")) %>%
+      pull(conf_col) %>%
+      subtract(.5)
+  }
+
+  map_dbl(turbines,
+          ~uniroot(conf_root,
+                   interval = range(R50_mod$fit$data$range),
+                   R50_mod = R50_mod,
+                   turbines = .x,
+                   conf_type= conf_type)$root)
+}
+
+
+
