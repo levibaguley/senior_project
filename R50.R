@@ -1,6 +1,5 @@
 library(tidyverse)
 library(parsnip)
-library(magrittr)
 
 source(here::here("R50_functions.R"))
 
@@ -15,8 +14,9 @@ R50_mod <- logistic_reg() %>%
 
 R50_dat <-
   tibble(turbines = 0:1) %>%
-  mutate(R50 = range_from_prob(0.5, turbines, R50_mod)) %>%
-  left_join(solve_R50_conf(R50_mod, res = 1000), by = "turbines")
+  mutate(R50   = solve_R50(R50_mod, turbines, "pred"),
+         lower = solve_R50(R50_mod, turbines, "lower"),
+         upper = solve_R50(R50_mod, turbines, "upper"))
 
 plot_dat <-
   tibble(turbines = c(rep(0, 1000), rep(1, 1000))) %>%
@@ -30,11 +30,12 @@ plot_dat <-
 sample %>%
   ggplot(aes(range, detection, color = as.factor(turbines))) +
   geom_jitter(width = 0, height = .02) +
+  scale_color_brewer(palette = "Set1") +
   geom_line(aes(y = .pred_1),       plot_dat, size = 1) +
   geom_line(aes(y = .pred_lower_1), plot_dat, linetype = 2) +
   geom_line(aes(y = .pred_upper_1), plot_dat, linetype = 2) +
-  coord_cartesian(xlim = c(0, NA)) +
   geom_point(aes(R50,   .5), R50_dat) +
   geom_point(aes(lower, .5), R50_dat) +
   geom_point(aes(upper, .5), R50_dat) +
+  coord_cartesian(xlim = c(0, NA)) +
   theme_bw()
