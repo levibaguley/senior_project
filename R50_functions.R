@@ -1,11 +1,9 @@
 
-
-
 #' Apply the R50 model to solve for R50 or a side of the confidence interval.
-
+#'
 #' @param R50_mod The model to used to predict.
 #' @param turbines  Predict under what condition? A binary vector where 0 = no turbines, 1 = turbines present.
-#' @param type A single character value. One of "pred", "lower" or "upper". "pred" (the default) gives the predicted R50 value. "lower" or "upper" give the corrisponding side of the confidence interval.
+#' @param type A character value. One of "pred", "lower" or "upper". "pred" (the default) gives the predicted R50 value. "lower" or "upper" give the corresponding side of the confidence interval.
 solve_R50 <- function(R50_mod, turbines, type="pred") {
 
   # logic for type input
@@ -20,7 +18,7 @@ solve_R50 <- function(R50_mod, turbines, type="pred") {
                   "Should be one of: 'pred', 'lower', 'upper',"))
   }
 
-  #function for solving
+  # function for solving in `uniroot`
   R50_root <- function(range, turbines) {
     suppressMessages(predict(R50_mod,
                              tibble(range = range, turbines = turbines),

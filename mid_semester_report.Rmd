@@ -1,0 +1,72 @@
+---
+title: "Mid-Semester Report"
+output: pdf_document
+header-includes:
+    - \usepackage[labelformat=empty]{caption}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+opts_chunk$set(echo = F)
+
+source(here::here("R50.R"))
+source(here::here("R50_power.R"))
+```
+
+
+
+## Develop a model for estimating R~50~.
+
+I was able to use a logistic model to estimate R~50~. Below is a plot of the model and the confidence intervals.
+
+```{r}
+R50_plot
+```
+
+
+```{r}
+R50_dat %>% 
+  mutate(turbines =c("None", "Present")) %>% 
+  kable("latex",
+        caption = "$R_{50}$ Estimaiton and Confidence Intervals",
+        col.names = c("Turbines", "$R_{50}$", "Lower", "Upper"),
+        booktabs = T, 
+        escape = F,
+        digits = 2) %>% 
+  kable_styling(latex_options = c("hold_position"))
+```
+
+\newpage
+
+## Identify impact of target conditions on R~50~.
+
+Since the `turbines` term is significant and it represents a horizontal shift in the two curves, the estimated R~50~ will be significantly different under the two conditions.
+
+```{r}
+
+R50_mod %>% 
+  tidy() %>% 
+  mutate(p.value = 
+           p.value %>% 
+           format(digits=1, scientific=F) %>% 
+           cell_spec("latex", 
+                     background = if_else(term=="turbines",
+                                          "yellow", "white"))) %>% 
+  kable("latex",
+        caption = "$R_{50}$ Model Terms",
+        booktabs = T,
+        escape = F,
+        digits = c(2,2,2,2,2)) %>% 
+  kable_styling(
+    latex_options = c("HOLD_position")
+    )
+
+```
+
+## Develop a means of estimating power and confidence.
+
+```{r}
+power_plot
+```
+
