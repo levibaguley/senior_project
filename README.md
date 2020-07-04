@@ -12,5 +12,5 @@ https://to70.com/dangerous-relationship-wind-turbines-aviation/
 
 ## Project Goals
 1.	Develop a model for estimating R<sub>50</sub>.
-2.	Identify impact of target conditions on R<sub>50</sub> and estimating impact by formally comparing the R<sub>50</sub>. under different test conditions.
+2.	Identify impact of target conditions on R<sub>50</sub> and estimating impact by formally comparing the R<sub>50</sub> under different test conditions.
 3.	Develop a means of estimating power and confidence for test resourcing and precision capability.

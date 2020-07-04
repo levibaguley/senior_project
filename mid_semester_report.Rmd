@@ -26,14 +26,15 @@ R50_plot
 
 
 ```{r}
-R50_dat %>% 
-  mutate(turbines =c("None", "Present")) %>% 
+R50_dat %>%
+  mutate(turbines = c("None", "Present")) %>%
   kable("latex",
-        caption = "$R_{50}$ Estimaiton and Confidence Intervals",
-        col.names = c("Turbines", "$R_{50}$", "Lower", "Upper"),
-        booktabs = T, 
-        escape = F,
-        digits = 2) %>% 
+    caption = "$R_{50}$ Estimaiton and Confidence Intervals",
+    col.names = c("Turbines", "$R_{50}$", "Lower", "Upper"),
+    booktabs = T,
+    escape = F,
+    digits = 2
+  ) %>%
   kable_styling(latex_options = c("hold_position"))
 ```
 
@@ -45,23 +46,27 @@ Since the `turbines` term is significant and it represents a horizontal shift in
 
 ```{r}
 
-R50_mod %>% 
-  tidy() %>% 
-  mutate(p.value = 
-           p.value %>% 
-           format(digits=1, scientific=F) %>% 
-           cell_spec("latex", 
-                     background = if_else(term=="turbines",
-                                          "yellow", "white"))) %>% 
+R50_mod %>%
+  tidy() %>%
+  mutate(
+    p.value =
+      p.value %>%
+        format(digits = 1, scientific = F) %>%
+        cell_spec("latex",
+          background = if_else(term == "turbines",
+            "yellow", "white"
+          )
+        )
+  ) %>%
   kable("latex",
-        caption = "$R_{50}$ Model Terms",
-        booktabs = T,
-        escape = F,
-        digits = c(2,2,2,2,2)) %>% 
+    caption = "$R_{50}$ Model Terms",
+    booktabs = T,
+    escape = F,
+    digits = c(2, 2, 2, 2, 2)
+  ) %>%
   kable_styling(
     latex_options = c("HOLD_position")
-    )
-
+  )
 ```
 
 ## Develop a means of estimating power and confidence.

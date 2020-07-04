@@ -1,0 +1,132 @@
+---
+title: |
+| R~50~ Estimation and Comparison:
+  | Final Report
+  output: 
+  pdf_document:
+    highlight: tango
+papersize: letter
+header-includes:
+    - \usepackage[labelformat=empty]{caption}
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(kableExtra)
+opts_chunk$set(echo = F)
+
+source(here::here("R50.R"))
+source(here::here("R50_power.R"))
+```
+
+
+# Choosing a Model for Estimating R~50~
+
+When first looking at this problem and the data I was given I knew that a logistic regression could be used to estimate R~50~. 
+I decided that a good estimate of R~50~ is the range where there is a 50% probability a target will be detected since R~50~ is the range where 50% of the targets will be detected. 
+However, a prediction using a logistic model can't estimate R~50~ directly. Logistics output a probability given a continuous variable, whereas what I needed was the opposite.
+I looked to see if there was a way to create a model that would be able to do this "out-of-the-box" but I found nothing and decided to stick with the logistic.
+I chose to create a logistic regression using the R package `parsnip` since prediction output is in a dataframe and I could obtain confidence intervals easily from it as well. 
+
+# Solving for R~50~ and Confidence Intervals
+
+Since my model couldn't estimate R~50~ directly, I created a function `solve_R50` that could use the model to solve for R~50~ and the confidence intervals under each condition. 
+
+In the function below the argument `R50_mod` is the `parsnip` logistic model and `turbines` is a binary vector indicating the condition to predict under. The argument `type` is one of `"pred"`, `"lower"` or `"upper"`. `"pred"` gives the predicted R~50~ value. `"lower"` or `"upper"` give the corresponding side of the confidence interval.
+
+```{r echo=TRUE, eval=FALSE}
+solve_R50 <- function(R50_mod, turbines, type) {
+
+  # ... skipped logic for `type` argument
+
+  # create a function that we will find the root of using `uniroot`
+  R50_root <- function(range, turbines) {
+    predict.model_fit(R50_mod,
+      tibble(range = range, turbines = turbines),
+      # pred_type variable determines if we are solving
+      # for R50 or a confidence interval
+      type = pred_type
+    ) %>%
+      # pick the column we need from predict.model_fit
+      # subtracting .5 creates a root where we want it
+      pull(pred_col) - .5
+  }
+
+  # solve for each `turbines` condition
+  map_dbl(
+    turbines,
+    ~ uniroot(R50_root,
+      interval = range(R50_mod$fit$data$range),
+      turbines = .x
+    )$root
+  )
+}
+```
+
+This is how I used the solver to obtain R~50~ and the confidence intervals for each turbine condition. Below is the information presented in table form and graphically.
+
+```{r echo=TRUE, eval=FALSE}
+R50_dat <-
+  tibble(turbines = 0:1) %>%
+  mutate(
+    R50 = solve_R50(R50_mod, turbines, "pred"),
+    lower = solve_R50(R50_mod, turbines, "lower"),
+    upper = solve_R50(R50_mod, turbines, "upper")
+  )
+```
+
+```{r}
+R50_dat %>%
+  mutate(turbines = c("None", "Present")) %>%
+  kable("latex",
+    caption = "$R_{50}$ Estimation and Confidence Intervals",
+    col.names = c("Turbines", "$R_{50}$", "Lower", "Upper"),
+    booktabs = T,
+    escape = F,
+    digits = 2
+  ) %>%
+  kable_styling(latex_options = c("hold_position"))
+```
+
+```{r}
+R50_plot
+```
+
+<!-- \newpage -->
+
+# Identify the Impact of the Presence of Wind Turbines on R~50~
+
+We can determine whether the presence of wind turbines affects R~50~ by looking at the impact the `turbines` term has on the model. Below are the estimates of the model's terms. Since the `turbines` term is significant and it represents a horizontal shift in the two curves as shown above, the estimated R~50~ will be significantly different under the two conditions.
+
+```{r}
+
+R50_mod %>%
+  tidy() %>%
+  mutate(
+    p.value =
+      p.value %>%
+        format(digits = 1, scientific = F) %>%
+        cell_spec("latex",
+          background = if_else(term == "turbines",
+            "yellow",
+            "white"
+          )
+        )
+  ) %>%
+  kable("latex",
+    caption = "$R_{50}$ Model Terms",
+    booktabs = T,
+    escape = F,
+    digits = c(2, 2, 2, 2, 2)
+  ) %>%
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
+# Estimation of power
+
+In order to estimate the power of a test
+
+
+```{r}
+power_plot
+```
