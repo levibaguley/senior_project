@@ -24,22 +24,14 @@ solve_R50 <- function(R50_mod, turbines, type) {
   R50_root <- function(range, turbines) {
     suppressMessages(
       predict.model_fit(R50_mod,
-        tibble(
-          range = range,
-          turbines = turbines
-        ),
-        type = pred_type
-      )
-    ) %>%
+                        tibble(range = range,
+                               turbines = turbines),
+                        type = pred_type)) %>%
       pull(pred_col) - .5
   }
 
-  map_dbl(
-    turbines,
-    ~ uniroot(
-      R50_root,
-      interval = range(R50_mod$fit$data$range),
-      turbines = .x
-    )$root
-  )
+  map_dbl(turbines,
+          ~ uniroot(R50_root,
+                    interval = range(R50_mod$fit$data$range),
+                    turbines = .x)$root)
 }

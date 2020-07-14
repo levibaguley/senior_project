@@ -10,8 +10,8 @@ library(knitr)
 library(kableExtra)
 opts_chunk$set(echo = F)
 
-source(here::here("R50.R"))
-source(here::here("R50_power.R"))
+source(here::here("scripts/R50.R"))
+source(here::here("scripts/R50_power.R"))
 ```
 
 

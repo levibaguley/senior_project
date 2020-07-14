@@ -1,8 +1,8 @@
 ---
 title: |
-| R~50~ Estimation and Comparison:
+  | R~50~ Estimation and Comparison:
   | Final Report
-  output: 
+output: 
   pdf_document:
     highlight: tango
 papersize: letter
@@ -15,8 +15,8 @@ library(knitr)
 library(kableExtra)
 opts_chunk$set(echo = F)
 
-source(here::here("R50.R"))
-source(here::here("R50_power.R"))
+source(here::here("scripts/R50.R"))
+source(here::here("scripts/R50_power.R"))
 ```
 
 
@@ -36,30 +36,27 @@ In the function below the argument `R50_mod` is the `parsnip` logistic model and
 
 ```{r echo=TRUE, eval=FALSE}
 solve_R50 <- function(R50_mod, turbines, type) {
-
+  
   # ... skipped logic for `type` argument
-
+  
   # create a function that we will find the root of using `uniroot`
   R50_root <- function(range, turbines) {
     predict.model_fit(R50_mod,
-      tibble(range = range, turbines = turbines),
-      # pred_type variable determines if we are solving
-      # for R50 or a confidence interval
-      type = pred_type
+                      tibble(range = range, turbines = turbines),
+                      # pred_type variable determines if we are solving
+                      # for R50 or a confidence interval
+                      type = pred_type
     ) %>%
       # pick the column we need from predict.model_fit
       # subtracting .5 creates a root where we want it
       pull(pred_col) - .5
   }
-
+  
   # solve for each `turbines` condition
-  map_dbl(
-    turbines,
-    ~ uniroot(R50_root,
-      interval = range(R50_mod$fit$data$range),
-      turbines = .x
-    )$root
-  )
+  map_dbl(turbines,
+          ~ uniroot(R50_root,
+                    interval = range(R50_mod$fit$data$range),
+                    turbines = .x)$root)
 }
 ```
 
@@ -68,22 +65,20 @@ This is how I used the solver to obtain R~50~ and the confidence intervals for e
 ```{r echo=TRUE, eval=FALSE}
 R50_dat <-
   tibble(turbines = 0:1) %>%
-  mutate(
-    R50 = solve_R50(R50_mod, turbines, "pred"),
-    lower = solve_R50(R50_mod, turbines, "lower"),
-    upper = solve_R50(R50_mod, turbines, "upper")
-  )
+  mutate(R50 = solve_R50(R50_mod, turbines, "pred"),
+         lower = solve_R50(R50_mod, turbines, "lower"),
+         upper = solve_R50(R50_mod, turbines, "upper"))
 ```
 
 ```{r}
 R50_dat %>%
   mutate(turbines = c("None", "Present")) %>%
   kable("latex",
-    caption = "$R_{50}$ Estimation and Confidence Intervals",
-    col.names = c("Turbines", "$R_{50}$", "Lower", "Upper"),
-    booktabs = T,
-    escape = F,
-    digits = 2
+        caption = "$R_{50}$ Estimation and Confidence Intervals",
+        col.names = c("Turbines", "$R_{50}$", "Lower", "Upper"),
+        booktabs = T,
+        escape = F,
+        digits = 2
   ) %>%
   kable_styling(latex_options = c("hold_position"))
 ```
@@ -102,31 +97,53 @@ We can determine whether the presence of wind turbines affects R~50~ by looking 
 
 R50_mod %>%
   tidy() %>%
-  mutate(
-    p.value =
-      p.value %>%
-        format(digits = 1, scientific = F) %>%
-        cell_spec("latex",
-          background = if_else(term == "turbines",
-            "yellow",
-            "white"
-          )
-        )
+  mutate(p.value =
+           p.value %>%
+           format(digits = 1, scientific = F) %>%
+           cell_spec("latex",
+                     background = if_else(term == "turbines",
+                                          "yellow",
+                                          "white"))
   ) %>%
   kable("latex",
-    caption = "$R_{50}$ Model Terms",
-    booktabs = T,
-    escape = F,
-    digits = c(2, 2, 2, 2, 2)
+        caption = "$R_{50}$ Model Terms",
+        booktabs = T,
+        escape = F,
+        digits = c(2, 2, 2, 2, 2)
   ) %>%
   kable_styling(latex_options = c("HOLD_position"))
 ```
 
+
 # Estimation of power
 
-In order to estimate the power of a test
-
+In order to calculate power I needed to estimate the standard deviation of R~50~. Unfortunately, the confidence intervals were not symmetric after translating them to be in terms of range. To be conservative in the power calculations I choose the largest margin to determine the standard deviation.
 
 ```{r}
+R50_dat %>%
+  mutate(across(c(lower, upper), ~ .x - R50, .names = "{col}_margin"),
+         turbines = c("None", "Present")) %>%
+  mutate(lower_margin = lower_margin %>% 
+           format(digits = 3, scientific = F) %>%
+           cell_spec("latex",
+                     background = if_else(turbines == "Present",
+                                          "yellow",
+                                          "white"))) %>% 
+  kable(col.names = c("Turbines", "$R_{50}$",
+                      "Lower", "Upper",
+                      "Lower Margin", "Upper Margin"),
+        caption = "$R_{50}$ Confidence Margins",
+        booktabs = T,
+        escape = F,
+        digits = 2) %>% 
+  kable_styling(latex_options = c("HOLD_position"))
+
+```
+
+If we assume there are two standard deviations from R~50~ to the interval bounds, then the largest the standard deviation could be is about 2. Since the difference in R~50~ is about 5 data miles less under conditions when there are wind turbines verses no turbines, then the R~50s~ are about 2.5 standard deviation from each other. In other words, the effect size is about 2.5 data miles. Using this information, I created the plot below.
+
+```{r}
+
 power_plot
 ```
+
