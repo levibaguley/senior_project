@@ -6,6 +6,7 @@ output:
   pdf_document:
     highlight: tango
 papersize: letter
+urlcolor: blue
 header-includes:
     - \usepackage[labelformat=empty]{caption}
 ---
@@ -25,16 +26,71 @@ source(here::here("scripts/R50_power.R"))
 When first looking at this problem and the data I was given I knew that a logistic regression could be used to estimate R~50~. 
 I decided that a good estimate of R~50~ is the range where there is a 50% probability a target will be detected since R~50~ is the range where 50% of the targets will be detected. 
 However, a prediction using a logistic model can't estimate R~50~ directly. Logistics output a probability given a continuous variable, whereas what I needed was the opposite.
-I looked to see if there was a way to create a model that would be able to do this "out-of-the-box" but I found nothing and decided to stick with the logistic.
-I chose to create a logistic regression using the R package `parsnip` since prediction output is in a dataframe and I could obtain confidence intervals easily from it as well. 
+I researched to see if there was a way to create a model that would be able to do this "out-of-the-box" but I found nothing. I decided to use the logistic model and find a way to solve for R~50~ using that model. I will explain this method later.
+
+I chose to create a logistic model using the R package `parsnip` since prediction output is in a dataframe and I could obtain confidence intervals easily from the model as well.
+At first while creating my model, I included the interaction term `range:turbines`. This would account for a difference in the rate the detection probability changes as the range of the target increases. Below is the how I created the model and the estimates of the model's terms.
+
+```{r R50-model-interaction, echo=TRUE, eval=FALSE}
+logistic_reg() %>%
+  set_engine("glm") %>%
+  fit(as.factor(detection) ~ range * turbines, data = sample)
+```
+
+```{r R50-model-interaction-table}
+logistic_reg() %>%
+  set_engine("glm") %>%
+  fit(as.factor(detection) ~ range * turbines, data = sample) %>% 
+  tidy() %>%
+  mutate(p.value =
+           p.value %>%
+           format(digits = 1, scientific = F) %>%
+           cell_spec("latex",
+                     background = if_else(term == "range:turbines",
+                                          "yellow",
+                                          "white"))) %>%
+  kable("latex",
+        caption = "$R_{50}$ Model With Interaction Term",
+        booktabs = T,
+        escape = F,
+        align = "lrrrr",
+        digits = rep(2,5)) %>%
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
+However, the interaction term was not significant so I simplified the model as shown below. All the terms of this model were significant and this was my final choice for a model.
+
+```{r R50-model, echo=TRUE, eval=FALSE}
+R50_mod <- logistic_reg() %>%
+  set_engine("glm") %>%
+  fit(as.factor(detection) ~ range + turbines, data = sample)
+```
+
+```{r R50-model-table}
+R50_mod %>% 
+  tidy() %>%
+  mutate(p.value =
+           p.value %>%
+           format(digits = 1, scientific = F) %>%
+           cell_spec("latex",
+                     background = "yellow")) %>%
+  kable("latex",
+        caption = "$R_{50}$ Model",
+        booktabs = T,
+        align = "lrrrr",
+        escape = F,
+        digits = rep(2,5)) %>%
+  kable_styling(latex_options = c("HOLD_position"))
+```
+
 
 # Solving for R~50~ and Confidence Intervals
 
-Since my model couldn't estimate R~50~ directly, I created a function `solve_R50` that could use the model to solve for R~50~ and the confidence intervals under each condition. 
+Since my model couldn't estimate R~50~ directly, I created a function `solve_R50` that could use the model to solve for R~50~ and the confidence intervals under each condition. `solve_R50` first creates a function `R50_root` that will have a root at where R~50~, the upper bound, or the lower bound is (depending on `type`). It then solves for the root using `uniroot` for each turbine condition. If you are interested, I wrote a detailed blog post [here](https://levibaguley.github.io/2020/05/30/simple-function-solving-in-r/) on the bulk of the logic behind this.
 
-In the function below the argument `R50_mod` is the `parsnip` logistic model and `turbines` is a binary vector indicating the condition to predict under. The argument `type` is one of `"pred"`, `"lower"` or `"upper"`. `"pred"` gives the predicted R~50~ value. `"lower"` or `"upper"` give the corresponding side of the confidence interval.
+In the function below, the argument `R50_mod` is the `parsnip` logistic model and `turbines` is a binary vector indicating the condition to predict under. The argument `type` is one of `"pred"`, `"lower"` or `"upper"`. `"pred"` gives the predicted R~50~ value. `"lower"` or `"upper"` give the corresponding side of the confidence interval. To see the full function see [here](https://github.com/levibaguley/senior_project/blob/master/scripts/solve_R50.R).
 
-```{r echo=TRUE, eval=FALSE}
+```{r solve-R50, echo=TRUE, eval=FALSE}
 solve_R50 <- function(R50_mod, turbines, type) {
   
   # ... skipped logic for `type` argument
@@ -62,7 +118,7 @@ solve_R50 <- function(R50_mod, turbines, type) {
 
 This is how I used the solver to obtain R~50~ and the confidence intervals for each turbine condition. Below is the information presented in table form and graphically.
 
-```{r echo=TRUE, eval=FALSE}
+```{r R50-estimates, echo=TRUE, eval=FALSE}
 R50_dat <-
   tibble(turbines = 0:1) %>%
   mutate(R50 = solve_R50(R50_mod, turbines, "pred"),
@@ -70,7 +126,7 @@ R50_dat <-
          upper = solve_R50(R50_mod, turbines, "upper"))
 ```
 
-```{r}
+```{r R50-estimates-table}
 R50_dat %>%
   mutate(turbines = c("None", "Present")) %>%
   kable("latex",
@@ -83,17 +139,16 @@ R50_dat %>%
   kable_styling(latex_options = c("hold_position"))
 ```
 
-```{r}
+```{r R50-plot}
 R50_plot
 ```
 
-<!-- \newpage -->
 
-# Identify the Impact of the Presence of Wind Turbines on R~50~
+# Impact of Wind Turbines on R~50~
 
-We can determine whether the presence of wind turbines affects R~50~ by looking at the impact the `turbines` term has on the model. Below are the estimates of the model's terms. Since the `turbines` term is significant and it represents a horizontal shift in the two curves as shown above, the estimated R~50~ will be significantly different under the two conditions.
+We can determine whether the presence of wind turbines affects R~50~ by looking at the impact the `turbines` term has on the model. Below are the estimates of the model's terms. Since the `turbines` term is significant and it represents a horizontal shift in the two curves as shown above, the estimated R~50~ will be significantly different under the two conditions. In this sample, the presence of wind turbines reduced R~50~ by 5.2 data miles.
 
-```{r}
+```{r turbines-term-table}
 
 R50_mod %>%
   tidy() %>%
@@ -103,27 +158,25 @@ R50_mod %>%
            cell_spec("latex",
                      background = if_else(term == "turbines",
                                           "yellow",
-                                          "white"))
-  ) %>%
+                                          "white"))) %>%
   kable("latex",
         caption = "$R_{50}$ Model Terms",
         booktabs = T,
+        align = "lrrrr",
         escape = F,
-        digits = c(2, 2, 2, 2, 2)
-  ) %>%
+        digits = rep(2,5)) %>%
   kable_styling(latex_options = c("HOLD_position"))
 ```
 
 
-# Estimation of power
+# Estimation of Power
 
-In order to calculate power I needed to estimate the standard deviation of R~50~. Unfortunately, the confidence intervals were not symmetric after translating them to be in terms of range. To be conservative in the power calculations I choose the largest margin to determine the standard deviation.
+To calculate power I needed to estimate the standard deviation of R~50~. I used the confidence intervals to make this estimation. Unfortunately, the confidence intervals were not symmetric after translating them to be in terms of range. More specifically, the distance from R~50~ to the upper bound was not equal to the distance from R~50~ to the upper bound. To be conservative in the power calculations I choose the largest margin to determine the standard deviation.
 
-```{r}
-R50_dat %>%
-  mutate(across(c(lower, upper), ~ .x - R50, .names = "{col}_margin"),
-         turbines = c("None", "Present")) %>%
-  mutate(lower_margin = lower_margin %>% 
+```{r conf-margins-table}
+conf_margins %>% 
+  mutate(turbines = c("None", "Present"),
+         lower_margin = lower_margin %>% 
            format(digits = 3, scientific = F) %>%
            cell_spec("latex",
                      background = if_else(turbines == "Present",
@@ -132,6 +185,7 @@ R50_dat %>%
   kable(col.names = c("Turbines", "$R_{50}$",
                       "Lower", "Upper",
                       "Lower Margin", "Upper Margin"),
+        align = "lrrrrr",
         caption = "$R_{50}$ Confidence Margins",
         booktabs = T,
         escape = F,
@@ -140,10 +194,16 @@ R50_dat %>%
 
 ```
 
-If we assume there are two standard deviations from R~50~ to the interval bounds, then the largest the standard deviation could be is about 2. Since the difference in R~50~ is about 5 data miles less under conditions when there are wind turbines verses no turbines, then the R~50s~ are about 2.5 standard deviation from each other. In other words, the effect size is about 2.5 data miles. Using this information, I created the plot below.
+Assuming there are two standard deviations from R~50~ to the interval bounds, my over-estimate for the standard deviation is about 2 (4.09 / 2). Since the difference in the R~50~ estimates is about 5 data miles when there are wind turbines versus no turbines, then the estimates are about 2.5 standard deviations from each other. In other words, the effect size is about 2.5 in this sample.     
 
-```{r}
+To calculate power across different sample sizes and effect sizes I used the function `pwr.t.test` from the R package `pwr`. Using a function normally used for t-test power calculations made sense in this situation because if R~50~ was estimated from several different samples of data under both turbine conditions, then a t-test would be used to compare the two sets of R~50~ estimates to prove that R~50~ is different under those conditions. Below is a power curve plot made using `pwr.t.test` for effect sizes and sample sizes smaller than the one in this sample.
 
+```{r power-plot}
 power_plot
 ```
 
+
+# Goals Accomplished
+
+By the end of this project, I developed a model and a method for estimating R~50~ and I estimated the confidence intervals of R~50~. I also identified the impact of the presence of wind turbines on R~50~ and I estimated the power of finding this impact for different sample sizes and effect sizes.
+If desired the code for this project can be found [here](https://github.com/levibaguley/senior_project).
